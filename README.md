@@ -1,6 +1,19 @@
 # Paper-to-MD
 
-将 arXiv 等平台的论文下载、提取全文，由 LLM 深度分析后保存到本地 Markdown 文件。
+> 基于 OpenClaw 的 skill。
+> 同时提供了脱离 OpenClaw 的命独立运行命令。
+
+<div align="left">
+
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-Agent-blue)](https://github.com/openclaw/openclaw)
+[![Python](https://img.shields.io/badge/Python-3.8+-green)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
+</div>
+
+## 核心功能
+
+**将 arXiv 等平台的论文下载、提取全文，由 LLM 深度分析后保存到本地 Markdown 文件**
 
 ## 核心特性
 
