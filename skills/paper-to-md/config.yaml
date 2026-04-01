@@ -1,0 +1,68 @@
+# Paper-to-MD 配置文件
+
+# 存储配置
+storage:
+  # 论文存储根目录（可通过环境变量 PAPER_STORAGE_DIR 覆盖）
+  base_dir: "/home/ssd2/openclaw/PaperToMd/paperstorge"
+
+# 论文获取配置
+paper:
+  # 是否下载 PDF（true: 下载 PDF 解析完整内容，false: 只获取元数据）
+  download_pdf: true
+
+  # PDF 缓存目录
+  cache_dir: "/home/ssd2/openclaw/tmp/paper_cache"
+
+  # 重试次数
+  retry_times: 3
+
+# 解析模板配置
+parsing:
+  # 默认模板
+  default_template: "default"
+
+  # 可用模板列表
+  available_templates:
+    - name: "default"
+      description: "三遍阅读法（深度解析）"
+    - name: "quick_note"
+      description: "快速笔记（核心要点）"
+    - name: "literature_review"
+      description: "文献综述（结构化）"
+
+# 输出配置
+output:
+  # 内容语言
+  language: "zh-CN"
+
+  # 是否包含论文链接
+  include_paper_link: true
+
+  # 是否包含 DOI
+  include_doi: true
+
+# LLM 配置（独立运行模式）
+llm:
+  # LLM Provider 和模型名称
+  # 免费选项:
+  #   - ollama/llama3.1 (推荐，本地运行)
+  #   - ollama/llama3.2
+  #   - ollama/mistral
+  #   - ollama/qwen2.5
+  #   - openrouter/google/gemma-7b-it:free
+  model: "ollama/llama3.1"
+
+  # API Base URL (Ollama 需要，其他 provider 可选)
+  api_base: "http://localhost:11434"
+
+  # API Key (Ollama 不需要，其他 provider 可选)
+  # api_key: "your-api-key"
+
+  # 最大输出 token 数
+  max_tokens: 8192
+
+  # 温度参数 (0-2)
+  temperature: 0.7
+
+  # 请求超时时间 (秒)
+  timeout: 120

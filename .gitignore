@@ -1,0 +1,7 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 本地存储目录
+paperstorge/
