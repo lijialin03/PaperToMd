@@ -104,14 +104,29 @@ python analyze.py --url "https://arxiv.org/abs/2506.13131" --template quick_note
 # 使用其他模型
 python analyze.py --url "https://arxiv.org/abs/2506.13131" --model ollama/qwen2.5
 
-# 处理未处理列表中的论文
+# 处理未处理列表中的论文（默认每篇间隔 10 秒，避免触发速率限制）
 python analyze.py --pending
+
+# 自定义论文间延迟（秒）
+python analyze.py --pending --delay 30
 
 # 从文件批量处理
 python analyze.py --input-file papers.txt
 
 # 整理已分析的论文
 python analyze.py --organize
+```
+
+**速率限制处理：**
+
+当使用 API 付费模型（如 Claude、GPT-4）时，可能会触发速率限制。程序会自动处理：
+- 自动重试：遇到速率限制时自动重试（最多 3 次）
+- 指数退避：重试等待时间依次递增（5s → 10s → 20s）
+- 论文间延迟：使用 `--delay` 参数设置论文处理间隔，默认 10 秒
+
+```bash
+# 使用 Claude API 时建议增加延迟
+python analyze.py --pending --model anthropic/claude-sonnet-4-6-20251101 --delay 60
 ```
 
 **论文列表管理：**
@@ -137,7 +152,7 @@ paperstorge/
 ├── analysis/         # 论文分析结果
 │   └── 2401.12345.md
 └── summary/          # 论文整理结果
-    └── 论文整理 -20260331-120000.md
+    └── 论文整理-2026-03-31.md  # 按日期命名，避免覆盖
 ```
 
 ## 可用模板

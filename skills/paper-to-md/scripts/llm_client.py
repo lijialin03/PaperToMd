@@ -29,6 +29,7 @@ LLM 调用模块
 """
 
 import os
+import time
 import logging
 from typing import Optional, List, Dict, Any, Iterator
 
@@ -47,6 +48,10 @@ FREE_MODELS = [
 # 默认模型 (Ollama - 免费)
 DEFAULT_MODEL = "ollama/llama3.1"
 DEFAULT_API_BASE = "http://localhost:11434"
+
+# 速率限制配置
+MAX_RETRIES = 3  # 最大重试次数
+RETRY_DELAY = 5  # 重试间隔（秒）
 
 
 def chat_completion(
@@ -138,30 +143,85 @@ def chat_completion(
 
 
 def _non_stream_completion(completion, request_kwargs: Dict[str, Any]) -> str:
-    """非流式调用"""
-    try:
-        response = completion(**request_kwargs)
-        content = response.choices[0].message.content
-        result = content.strip() if content else ""
-        logger.info(f"LLM 响应完成，长度：{len(result)} 字符")
-        return result
-    except Exception as e:
-        logger.error(f"LLM 调用失败：{e}")
-        raise
+    """非流式调用，带重试机制"""
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = completion(**request_kwargs)
+            content = response.choices[0].message.content
+            result = content.strip() if content else ""
+            logger.info(f"LLM 响应完成，长度：{len(result)} 字符")
+            return result
+        except Exception as e:
+            last_error = e
+            error_msg = str(e)
+
+            # 检查是否是速率限制错误
+            is_rate_limit = (
+                "RateLimitError" in error_msg or
+                "rate limit" in error_msg.lower() or
+                "429" in error_msg or
+                "exceed" in error_msg.lower()
+            )
+
+            if is_rate_limit:
+                if attempt < MAX_RETRIES - 1:
+                    # 从错误信息中解析等待时间，或使用指数退避
+                    wait_time = RETRY_DELAY * (2 ** attempt)  # 指数退避：5s, 10s, 20s
+                    logger.warning(f"触发速率限制，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{MAX_RETRIES})")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"LLM 调用失败：达到最大重试次数，速率限制错误：{e}")
+                    raise
+            else:
+                # 其他错误直接抛出
+                logger.error(f"LLM 调用失败：{e}")
+                raise
+
+    logger.error(f"LLM 调用失败：达到最大重试次数")
+    raise last_error
 
 
 def _stream_completion(completion, request_kwargs: Dict[str, Any]) -> Iterator[str]:
-    """流式调用"""
-    try:
-        response = completion(stream=True, **request_kwargs)
-        for chunk in response:
-            if hasattr(chunk, 'choices') and chunk.choices:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, 'content') and delta.content:
-                    yield delta.content
-    except Exception as e:
-        logger.error(f"LLM 流式调用失败：{e}")
-        raise
+    """流式调用，带重试机制"""
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = completion(stream=True, **request_kwargs)
+            for chunk in response:
+                if hasattr(chunk, 'choices') and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        yield delta.content
+            return  # 成功完成
+        except Exception as e:
+            last_error = e
+            error_msg = str(e)
+
+            # 检查是否是速率限制错误
+            is_rate_limit = (
+                "RateLimitError" in error_msg or
+                "rate limit" in error_msg.lower() or
+                "429" in error_msg or
+                "exceed" in error_msg.lower()
+            )
+
+            if is_rate_limit:
+                if attempt < MAX_RETRIES - 1:
+                    wait_time = RETRY_DELAY * (2 ** attempt)
+                    logger.warning(f"触发速率限制，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{MAX_RETRIES})")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"LLM 流式调用失败：达到最大重试次数，速率限制错误：{e}")
+                    raise
+            else:
+                logger.error(f"LLM 流式调用失败：{e}")
+                raise
+
+    logger.error(f"LLM 流式调用失败：达到最大重试次数")
+    raise last_error
 
 
 def check_ollama_available(api_base: str = DEFAULT_API_BASE) -> bool:

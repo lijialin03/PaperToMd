@@ -29,6 +29,7 @@ Paper-to-MD 独立运行入口
 
 import os
 import sys
+import time
 import argparse
 import logging
 import json
@@ -264,6 +265,7 @@ def process_batch_papers(
     api_base: str = None,
     api_key: str = None,
     stream: bool = False,
+    delay_between_papers: int = 10,  # 论文间延迟（秒）
 ) -> dict:
     """
     批量处理论文
@@ -276,6 +278,7 @@ def process_batch_papers(
         api_base: API Base URL (可选)
         api_key: API Key (可选)
         stream: 是否流式输出
+        delay_between_papers: 论文间延迟秒数（避免触发速率限制）
 
     Returns:
         dict: 批量处理结果
@@ -301,6 +304,11 @@ def process_batch_papers(
         results.append(result)
         if result.get('success'):
             success_count += 1
+
+        # 如果不是最后一篇，等待一段时间
+        if i < len(urls) and delay_between_papers > 0:
+            logger.info(f"等待 {delay_between_papers} 秒后处理下一篇论文...")
+            time.sleep(delay_between_papers)
 
     return {
         'total': len(urls),
@@ -429,6 +437,8 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help='干运行（预览结果，不保存）')
     parser.add_argument('--storage-dir', help='存储目录 (可选)')
     parser.add_argument('--config', help='配置文件路径 (可选)')
+    parser.add_argument('--delay', type=int, default=10,
+                       help='批量处理时论文间的延迟秒数 (默认：10，避免触发速率限制)')
 
     # 日志选项
     parser.add_argument('--verbose', '-v', action='store_true', help='详细日志输出')
@@ -490,12 +500,12 @@ def main():
         with open(args.input_file, 'r', encoding='utf-8') as f:
             urls = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         logger.info(f"从文件读取到 {len(urls)} 篇论文")
-        result = process_batch_papers(helper, urls, args.template, model=model, api_base=api_base, api_key=api_key, stream=args.stream)
+        result = process_batch_papers(helper, urls, args.template, model=model, api_base=api_base, api_key=api_key, stream=args.stream, delay_between_papers=args.delay)
     elif args.pending:
         # 处理未处理列表
         urls = helper.get_pending_papers()
         logger.info(f"未处理列表中有 {len(urls)} 篇论文")
-        result = process_batch_papers(helper, urls, args.template, model=model, api_base=api_base, api_key=api_key, stream=args.stream)
+        result = process_batch_papers(helper, urls, args.template, model=model, api_base=api_base, api_key=api_key, stream=args.stream, delay_between_papers=args.delay)
     else:
         # 处理单篇论文
         result = process_single_paper(

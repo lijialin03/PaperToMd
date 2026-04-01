@@ -1,114 +1,163 @@
 ---
 name: paper-to-md
-description: 解析 arXiv 论文并保存到本地 Markdown 文件
+description: Download arXiv papers, extract text, and save LLM-analyzed content to local Markdown files. Triggers when asked to download, analyze, or summarize arXiv papers.
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "📄",
+        "os": ["darwin", "linux"],
+        "requires": { "pip": ["arxiv", "pymupdf", "pdfplumber", "pyyaml", "litellm"] },
+        "install":
+          [
+            {
+              "id": "pip-deps",
+              "kind": "pip",
+              "packages": ["arxiv", "pymupdf", "pdfplumber", "pyyaml", "litellm"],
+              "label": "Install Paper-to-MD dependencies (pip)",
+            },
+          ],
+      },
+  }
 ---
 
-# Paper-to-MD Skill
+# Paper-to-MD
 
-## 描述
+## Overview
 
-**名称**：paper-to-md
-**版本**：1.0.0
-**类型**：论文分析辅助工具
+Download arXiv papers, extract full text, and save LLM-analyzed content to local Markdown files. Supports batch processing, paper list management, and knowledge organization.
 
-核心功能：
-- 从 arXiv 下载论文 PDF 并提取全文
-- 提供专业的论文分析模板
-- 将 LLM 分析结果保存为 Markdown 文件
-- 支持论文列表管理和整理
+## Quick start
 
-## 工作流程
+1. Install dependencies: `pip install arxiv pymupdf pdfplumber pyyaml litellm`
+2. Configure LLM (Ollama recommended, free):
+   ```bash
+   ollama run llama3.1
+   ```
+3. Run analysis:
+   ```bash
+   python {baseDir}/analyze.py --url "https://arxiv.org/abs/2506.13131"
+   ```
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      工作流程                                │
-├─────────────────────────────────────────────────────────────┤
-│  1. 准备阶段（PaperToMd）                                   │
-│     ├─ 下载论文 PDF（带重试机制）                            │
-│     ├─ 提取论文全文                                          │
-│     └─ 准备分析模板                                          │
-│                                                              │
-│  2. 分析阶段（会话 LLM）⭐                                   │
-│     ├─ 读取论文全文和模板                                    │
-│     └─ 深度分析生成结构化内容                                │
-│                                                              │
-│  3. 写入阶段（PaperToMd）                                   │
-│     ├─ 保存分析结果为 Markdown                               │
-│     └─ 更新论文列表状态                                      │
-└─────────────────────────────────────────────────────────────┘
+## Commands
+
+### Analyze single paper
+
+```bash
+python {baseDir}/analyze.py --url "https://arxiv.org/abs/2506.13131" --stream
 ```
 
-**重要**：分析阶段必须由会话 LLM 完成，Skill 本身不生成分析内容。
+### Process pending papers
+
+Add papers to `paperstorge/unprocessed.md`:
+```markdown
+# 0401
+https://arxiv.org/abs/2506.13131
+https://arxiv.org/abs/2408.11869
+```
+
+Then run:
+```bash
+python {baseDir}/analyze.py --pending
+python {baseDir}/analyze.py --pending --delay 30  # Custom delay between papers
+```
+
+### Batch process from file
+
+```bash
+python {baseDir}/analyze.py --input-file papers.txt
+```
+
+### Organize analyzed papers
+
+```bash
+python {baseDir}/analyze.py --organize
+```
+
+## Configuration
+
+### LLM Configuration
+
+Use Ollama (free, local):
+```bash
+export OLLAMA_HOST="http://localhost:11434"
+python {baseDir}/analyze.py --url "..." --model ollama/llama3.1
+```
+
+Use Claude API:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+python {baseDir}/analyze.py --url "..." --model anthropic/claude-sonnet-4-6 --delay 60
+```
+
+Or use `config.yaml`:
+```yaml
+llm:
+  model: "ollama/llama3.1"
+  api_base: "http://localhost:11434"
+  max_tokens: 8192
+  timeout: 120
+```
+
+### Storage Configuration
+
+```yaml
+storage:
+  base_dir: "~/paperstorge"
+```
+
+## Output Structure
+
+```
+paperstorge/
+├── unprocessed.md    # Pending papers
+├── processed.md      # Processed papers
+├── analysis/         # Paper analysis (by arXiv ID)
+│   └── 2506.13131.md
+└── summary/          # Organization reports (by date)
+    └── 2026-04-01.md
+```
 
 ## API
 
-### PaperToMd 类
+### PaperToMd Class
 
 ```python
 from scripts import PaperToMd
 
-helper = PaperToMd(
-    template='default',      # 模板名称
-    storage_dir=None,        # 存储目录
-    config_path=None         # 配置文件路径
-)
+helper = PaperToMd(storage_dir='~/paperstorge')
+pdf_path, metadata = helper.prepare_paper('https://arxiv.org/abs/2506.13131')
+text = helper.extract_text(pdf_path)
+template = helper.get_template()
+# Pass text + template to LLM, then:
+helper.write_analysis(analysis_content, metadata)
 ```
 
-#### 核心方法
-
-| 方法 | 说明 |
-|------|------|
-| `prepare_paper(url, download_pdf=True)` | 准备论文（下载 + 元数据） |
-| `extract_text(pdf_path)` | 提取 PDF 文本 |
-| `get_template()` | 获取分析模板 |
-| `write_analysis(content, metadata)` | 写入分析结果 |
-| `get_pending_papers()` | 获取未处理论文列表 |
-| `add_pending_paper(url)` | 添加论文到未处理列表 |
-| `get_analysis_files()` | 获取所有分析文件 |
-| `get_analysis_content(arxiv_id)` | 获取指定论文的分析内容 |
-
-### KnowledgeOrganizer 类
+### KnowledgeOrganizer Class
 
 ```python
 from scripts import KnowledgeOrganizer
 
 organizer = KnowledgeOrganizer()
-result = organizer.prepare_organize()
+result = organizer.prepare_organize()  # Extract tags & recommendations
+organizer.write_organized_content(report, title="论文整理报告")
 ```
 
-#### 方法
+## Rate Limit Handling
 
-| 方法 | 说明 |
-|------|------|
-| `prepare_organize()` | 提取标签和推荐数据 |
-| `write_organized_content(content, title)` | 写入整理报告 |
+- Auto-retry: Up to 3 retries with exponential backoff (5s → 10s → 20s)
+- Paper delay: Use `--delay` to set seconds between papers (default: 10)
+- For API models (Claude, GPT-4), use longer delays: `--delay 60`
 
-## 文件结构
+## Templates
 
-```
-paper-to-md/
-├── README.md              # 用户文档
-├── SKILL.md               # Skill 开发者文档
-├── config.yaml            # 配置文件
-├── templates.yaml         # 模板定义
-├── analyze.py             # 独立运行入口
-└── scripts/
-    ├── __init__.py
-    ├── converter.py       # PaperToMd 主类
-    ├── local_storage.py   # 本地存储
-    ├── paper_downloader.py # 论文下载
-    ├── paper_parser.py    # 模板解析
-    ├── llm_client.py      # LLM 调用
-    └── knowledge_organizer.py # 论文整理
-```
+| Template | Description |
+|----------|-------------|
+| `default` | Three-pass reading method |
+| `quick_note` | Quick notes template |
+| `literature_review` | Literature review template |
 
-## 依赖
+## References
 
-- `arxiv` - 论文下载
-- `pymupdf` 或 `pdfplumber` - PDF 文本提取
-- `pyyaml` - 配置解析
-- `litellm` - LLM 调用
-
-```bash
-pip install arxiv pymupdf pdfplumber pyyaml litellm
-```
+- `README.md` - User documentation
+- `scripts/` - Implementation modules
